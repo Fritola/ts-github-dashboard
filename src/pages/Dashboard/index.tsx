@@ -1,42 +1,90 @@
-import React from 'react'
+import React, {useState, useEffect, FormEvent} from 'react'
 import logoImage from '../../assets/Logo.svg'
-import {Title, Form, Repositories} from './style'
+import {Title, Form, Repositories, Error} from './style'
+import {Link} from 'react-router-dom'
 
 import { FiChevronRight } from 'react-icons/fi'
+import api from '../../services/api'
+
+interface Repository {
+    full_name: string;
+    description: string;
+    owner: {
+        login: string;
+        avatar_url: string;
+    }
+}
 
 const Dashboard: React.FC = () => {
+    const [newRepo, setNewRepo] = useState('')
+    const [repositories, setRepositories] = useState<Repository[]>(() => {
+        const storagedRepositories = localStorage.getItem('@GithubExplorer:repositories')
+        if(storagedRepositories) {
+            return JSON.parse(storagedRepositories)
+        }else{
+            return []
+        }
+    })
+    const [inputError, setInputError] = useState('')
+    
+    useEffect(() =>{
+        localStorage.setItem('@GithubExplorer:repositories', JSON.stringify(repositories))
+    }, [repositories])
+
+    async function handleAddRepository(event: FormEvent<HTMLFormElement>): Promise<void> {
+        event.preventDefault()
+
+        if(!newRepo) {
+            setInputError('Type the author/name from the repository')
+            return;
+        }
+        
+        try {
+            const response = await api.get<Repository>(`repos/${newRepo}`)
+        
+            const repository = response.data        
+            
+            setRepositories([...repositories, repository])
+            setNewRepo('')
+            setInputError('')
+
+        } catch (error) {
+            setInputError('Error on searching a repository')
+        }
+    }
+
     return(
         <>
             <img src={logoImage} alt="Github Explorer" />
             <Title>Explore repositórios no Github</Title>
 
-            <Form>
-                <input placeholder="Digite o nome do repositório"/>
+            <Form hasError={!!inputError} onSubmit={handleAddRepository}>
+                <input 
+                    value={newRepo}
+                    onChange={(e) => setNewRepo(e.target.value)}
+                    placeholder="Digite o nome do repositório"
+                />
                 <button type="submit">Pesquisar</button>
             </Form>
 
+            {inputError && <Error>{inputError}</Error>}
+
             <Repositories>
-                <a href="#">
-                    <img src="https://avatars0.githubusercontent.com/u/16598311?s=460&u=a1dc92b8e16f088b8c39791d8dd5f5ca925ac79c&v=4" alt=""/>
-                    
-                    <div>
-                        <strong>Fritola/beerport</strong>
-                        <p>App to check yours beers</p>
-                    </div>
+                       
 
-                    <FiChevronRight size={20}/>
-                </a>       
+                {repositories.map(repository => (
+                    <Link key={repository.full_name} to={`/repositories/${repository.full_name}`}>
+                        <img src={repository.owner.avatar_url} alt={repository.owner.login}/>
+                        
+                        <div>
+                            <strong>{repository.full_name}</strong>
+                            <p>{repository.description}</p>
+                        </div>
 
-                <a href="#">
-                    <img src="https://avatars0.githubusercontent.com/u/16598311?s=460&u=a1dc92b8e16f088b8c39791d8dd5f5ca925ac79c&v=4" alt=""/>
-                    
-                    <div>
-                        <strong>Fritola/beerport</strong>
-                        <p>App to check yours beers</p>
-                    </div>
-
-                    <FiChevronRight size={20}/>
-                </a>           
+                        <FiChevronRight size={20}/>
+                    </Link>
+                ))}
+       
             </Repositories>
         </>
     )
